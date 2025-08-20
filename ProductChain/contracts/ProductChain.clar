@@ -283,4 +283,50 @@
     )
 )
 
+;; Comprehensive warranty claim processing system with detailed tracking and validation
+(define-public (process-warranty-claim 
+    (product-id (string-ascii 50))
+    (claim-type (string-ascii 100))
+    (claimant-contact (string-ascii 200)))
+    (let 
+        (
+            (product-data (unwrap! (map-get? products { product-id: product-id }) ERR-PRODUCT-NOT-FOUND))
+            (current-claim-id (+ (var-get claim-counter) u1))
+        )
+        (begin
+            ;; Validate that the claimant is the current owner of the product
+            (asserts! (is-eq tx-sender (get owner product-data)) ERR-NOT-OWNER)
+            
+            ;; Verify that the warranty is still valid and hasn't expired
+            (asserts! (is-warranty-valid product-id) ERR-WARRANTY-EXPIRED)
+            
+            ;; Create detailed warranty claim record for comprehensive audit trail
+            (map-set warranty-claims
+                { claim-id: current-claim-id }
+                {
+                    product-id: product-id,
+                    claimant: tx-sender,
+                    claim-date: block-height,
+                    claim-type: claim-type,
+                    status: "pending",
+                    resolution-date: none
+                }
+            )
+            
+            ;; Update product data to increment warranty claims counter
+            (map-set products 
+                { product-id: product-id }
+                (merge product-data 
+                    { warranty-claims: (+ (get warranty-claims product-data) u1) }
+                )
+            )
+            
+            ;; Increment global claim counter for next claim
+            (var-set claim-counter current-claim-id)
+            
+            ;; Return success with the new claim ID for reference
+            (ok current-claim-id)
+        )
+    )
+)
 
